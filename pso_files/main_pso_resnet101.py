@@ -31,10 +31,10 @@ def main(train_img,train_ann,val_img,val_ann ):
     optimizer = torch.optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0007)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
 
-    num_epochs = 100 
+    num_epochs = 200 
     train_losses, val_losses = [], []
     best_val_loss = float('inf')  
-    patience_early_stop = 4
+    patience_early_stop = 15
     trigger_times = 0 
 
     print("\n--- Début de l'entraînement ---")
@@ -100,8 +100,8 @@ def main(train_img,train_ann,val_img,val_ann ):
     print("Graphique des seuils sauvegardé.")
 
 if __name__ == "__main__":
-    train_img = r"C:\Users\k.nguessan\Desktop\DossierStage\Continuous_PSO.v6i.coco\train\images"
-    train_ann = r"C:\Users\k.nguessan\Desktop\DossierStage\Continuous_PSO.v6i.coco\train\_annotations.coco.json"
-    val_img = r"C:\Users\k.nguessan\Desktop\DossierStage\Continuous_PSO.v6i.coco\valid\images"
-    val_ann = r"C:\Users\k.nguessan\Desktop\DossierStage\Continuous_PSO.v6i.coco\valid\_annotations.coco.json"
+    train_img = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Continuous_PSO.v6i.coco\train\images"
+    train_ann = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Continuous_PSO.v6i.coco\train\_annotations.coco.json"
+    val_img = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Continuous_PSO.v6i.coco\valid\images"
+    val_ann = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Continuous_PSO.v6i.coco\valid\_annotations.coco.json"
     main(train_img,train_ann,val_img,val_ann ) 

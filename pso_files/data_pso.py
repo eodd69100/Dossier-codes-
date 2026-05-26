@@ -6,16 +6,28 @@ from PIL import Image
 from torchvision.transforms import functional as F
 from torch.utils.data import Dataset, DataLoader
 
+import os
+import json
+import torch
+from PIL import Image
+
+# Les deux NOUVELLES librairies magiques pour la Data Augmentation
+from torchvision.transforms import v2
+from torchvision import tv_tensors
+from torch.utils.data import Dataset, DataLoader
+
 class COCODatasetPSO(Dataset):
-    def __init__(self, img_folder, annotation_file):
+    # Ajout du paramètre "transforms"
+    def __init__(self, img_folder, annotation_file, transforms=None):
         self.img_folder = img_folder
+        self.transforms = transforms # On stocke nos transformations
         
         with open(annotation_file) as f:
             data = json.load(f)
 
         self.images = data["images"]
         self.annotations = data["annotations"]
-        self.cat_to_label = {1: 1}  # 1 seule classe = PSO
+        self.cat_to_label = {1: 1}  # pso a l'id 1 dans les annotations, et on veut que le modèle le reconnaisse comme la classe 1 (pas de classe 0 pour le fond)
 
         self.image_to_annots = {}
         for ann in self.annotations:
@@ -35,36 +47,86 @@ class COCODatasetPSO(Dataset):
         img_path = os.path.join(self.img_folder, filename)
 
         img = Image.open(img_path).convert("RGB")
-        img_tensor = F.to_tensor(img)
+        largeur, hauteur = img.size # On a besoin de la taille pour les boîtes
 
         boxes, labels = [], []
 
         for ann in self.image_to_annots.get(img_id, []):
             x, y, w, h = ann["bbox"]
             boxes.append([x, y, x + w, y + h])
-            labels.append(1)  
+            
+            cat_id = ann["category_id"]
+            labels.append(self.cat_to_label[cat_id])  
 
         if len(boxes) == 0:
-            boxes = torch.zeros((0, 4), dtype=torch.float32)
-            labels = torch.zeros((0,), dtype=torch.int64)
+            boxes_tensor = torch.zeros((0, 4), dtype=torch.float32)
+            labels_tensor = torch.zeros((0,), dtype=torch.int64)
         else:
-            boxes = torch.tensor(boxes, dtype=torch.float32)
-            labels = torch.tensor(labels, dtype=torch.int64)
+            boxes_tensor = torch.tensor(boxes, dtype=torch.float32)
+            labels_tensor = torch.tensor(labels, dtype=torch.int64)
+
+        # L'ASTUCE EST ICI : On emballe nos boîtes dans un objet "BoundingBoxes".
+        # Ainsi, si v2 retourne l'image, il saura comment retourner ces boîtes !
+        tv_boxes = tv_tensors.BoundingBoxes(
+            boxes_tensor, 
+            format="XYXY", 
+            canvas_size=(hauteur, largeur)
+        )
 
         target = {
-            "boxes": boxes,
-            "labels": labels,
+            "boxes": tv_boxes,
+            "labels": labels_tensor,
             "image_id": torch.tensor([img_id])
         }
 
-        return img_tensor, target
+        # Si on a défini des transformations (ex: pendant l'entraînement), on les applique !
+        if self.transforms is not None:
+            img, target = self.transforms(img, target)
+
+        return img, target
 
 def collate_fn(batch):
     return tuple(zip(*batch))
 
+# --- LE PIPELINE DE DATA AUGMENTATION ---
+def get_transforms(train):
+    transforms = []
+    
+    # 1. Transformations UNIQUEMENT pour l'entraînement
+    if train:
+        # A. Symétrie horizontale (1 chance sur 2)
+        # Ça casse la mémorisation du "les fenêtres sont toujours à gauche"
+        transforms.append(v2.RandomHorizontalFlip(p=0.5))
+        
+        # B. Jittering de couleur
+        # Simule des photos prises le matin, le soir, sous les nuages ou en plein soleil
+        transforms.append(v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2))
+        
+        # C. Zoom / Dézoom aléatoire (Échelle)
+        # Force le modèle à comprendre la texture d'une fenêtre peu importe sa taille
+        transforms.append(v2.RandomZoomOut(fill=0, p=0.2))
+
+    # 2. Transformations OBLIGATOIRES (pour Train ET Validation)
+    # Convertit l'image PIL en Tenseur PyTorch normalisé (remplace F.to_tensor)
+    transforms.append(v2.ToImage()) 
+    transforms.append(v2.ToDtype(torch.float32, scale=True))
+    
+    return v2.Compose(transforms)
+
 def get_dataloaders(train_img, train_ann, val_img, val_ann, batch_size=2):
-    train_dataset = COCODatasetPSO(img_folder=train_img, annotation_file=train_ann)
-    val_dataset = COCODatasetPSO(img_folder=val_img, annotation_file=val_ann)
+    # On applique les augmentations lourdes sur le Train
+    train_dataset = COCODatasetPSO(
+        img_folder=train_img, 
+        annotation_file=train_ann, 
+        transforms=get_transforms(train=True)
+    )
+    
+    # On n'applique AUCUNE augmentation sur la Validation (juste la conversion en Tenseur)
+    val_dataset = COCODatasetPSO(
+        img_folder=val_img, 
+        annotation_file=val_ann, 
+        transforms=get_transforms(train=False)
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
