@@ -1,57 +1,76 @@
-
 import torch
 import numpy as np
 from torchvision.ops import box_iou
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
 def train_one_epoch(model, optimizer, data_loader, device):
-    """Effectue une époque d'entraînement sur le modèle Faster R-CNN.
-    Args:      
-        model: Le modèle Faster R-CNN à entraîner.
-        optimizer: L'optimiseur utilisé pour mettre à jour les poids du modèle.
-        data_loader: Le chargeur de données pour l'entraînement.
-        device: Le dispositif (CPU ou GPU) sur lequel effectuer les calculs."""
-    model.train() # Met le modèle en mode entraînement (nécessaire pour calculer les pertes sur Faster R-CNN)   
-    train_loss_epoch = 0.0
-
-    for images, targets in data_loader:
-        images = [img.to(device) for img in images]
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
-        loss_dict = model(images, targets) # Le modèle retourne un dictionnaire de pertes (ex: {'loss_classifier': ..., 'loss_box_reg': ..., ...})
-        loss = sum(loss_dict.values()) # On somme toutes les composantes de la perte pour obtenir une valeur scalaire totale
-
-        optimizer.zero_grad() # Réinitialise les gradients accumulés des itérations précédentes
-        loss.backward() # Effectue la rétropropagation pour calculer les gradients des poids du modèle par rapport à la perte
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0) # Optionnel : clip les gradients pour éviter les explosions de gradients (utile surtout pour les réseaux profonds)
-        optimizer.step() # Met à jour les poids du modèle en fonction des gradients calculés
-
-        train_loss_epoch += loss.item() # Accumule la perte totale de l'époque pour pouvoir calculer la moyenne à la fin
+    """Effectue une époque d'entraînement en suivant séparément les pertes de classification 
+    et de régression des boîtes, avec sécurité anti-explosion de gradient."""
+    model.train()
     
-    return train_loss_epoch / len(data_loader) # Retourne la perte moyenne par lot pour l'époque d'entraînement
+    running_total_loss = 0.0
+    running_cls_loss = 0.0
+    running_reg_loss = 0.0
+    
+    for images, targets in data_loader:
+        images = list(image.to(device) for image in images)
+        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        
+        # Le modèle calcule les composants de la perte
+        loss_dict = model(images, targets)
+        losses = sum(loss for loss in loss_dict.values())
+        
+        # Extraction des pertes individuelles pour le suivi détaillé
+        perte_totale_batch = losses.item()
+        perte_cls_batch = loss_dict['loss_classifier'].item()
+        perte_reg_batch = loss_dict['loss_box_reg'].item()
+        
+        # Accumulation dans nos compteurs
+        running_total_loss += perte_totale_batch
+        running_cls_loss += perte_cls_batch
+        running_reg_loss += perte_reg_batch
+        
+        # Rétropropagation
+        optimizer.zero_grad()
+        losses.backward()
+        
+        # SÉCURITÉ : Empêche les gradients d'exploser (repris de votre première fonction)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
+        optimizer.step()
+        
+    # Calcul de la moyenne par batch pour cette époque
+    num_batches = len(data_loader)
+    epoch_total_loss = running_total_loss / num_batches
+    epoch_cls_loss = running_cls_loss / num_batches
+    epoch_reg_loss = running_reg_loss / num_batches
+    
+    return epoch_total_loss, epoch_cls_loss, epoch_reg_loss
+
 
 def evaluate_loss(model, data_loader, device):
-    """Évalue la perte du modèle sur un ensemble de validation."""
-
-    model.train() # Nécessaire pour obtenir la validation loss sur Faster R-CNN
-    val_loss_epoch = 0.0
-    with torch.no_grad(): # On désactive le calcul des gradients pour économiser de la mémoire et accélérer les calculs pendant l'évaluation
+    """Calcule la perte moyenne sur le jeu de validation.
+    Note : Faster R-CNN requiert model.train() pour accepter de calculer une perte."""
+    model.train()  # Crucial pour forcer le calcul des pertes de validation
+    running_val_loss = 0.0
+    
+    with torch.no_grad():  # On désactive la mise à jour des poids
         for images, targets in data_loader:
-            images = [img.to(device) for img in images]
+            images = list(image.to(device) for image in images)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-
+            
             loss_dict = model(images, targets)
-            loss = sum(loss_dict.values())
-            val_loss_epoch += loss.item()
+            losses = sum(loss for loss in loss_dict.values())
+            
+            running_val_loss += losses.item()
+            
+    return running_val_loss / len(data_loader)
 
-    return val_loss_epoch / len(data_loader)
 
 def evaluate_map_all_ious(model, val_loader, device):
-    """Évalue le mAP du modèle sur l'ensemble de validation pour une gamme de seuils d'IoU (de 0.50 à 0.95
-par exemple)."""
-    model.eval() # Met le modèle en mode évaluation (désactive les comportements spécifiques à l'entraînement comme le dropout)
+    """Évalue le mAP du modèle sur l'ensemble de validation pour une gamme de seuils d'IoU (0.50 à 0.95)."""
+    model.eval() # Mode évaluation standard pour obtenir des boîtes prédictives
     
-    # On stocke tout sur le CPU pour ne faire l'inférence qu'une seule fois
     all_preds = []
     all_targets = []
     
@@ -64,21 +83,18 @@ par exemple)."""
             preds = [{k: v.cpu() for k, v in p.items()} for p in preds]
             targets = [{k: v.cpu() for k, v in t.items()} for t in targets]
             
-            all_preds.extend(preds) # On ajoute les prédictions de ce lot à la liste globale de toutes les prédictions
-            all_targets.extend(targets) # On ajoute les cibles de ce lot à la liste globale de toutes les cibles
+            all_preds.extend(preds)
+            all_targets.extend(targets)
             
-    # Calcul du résumé global (pour avoir le vrai mAP moyen)
-    metric_global = MeanAveragePrecision() # Par défaut, ce calcul se fait sur tous les seuils d'IoU de 0.50 à 0.95 avec un pas de 0.05
-    metric_global.update(all_preds, all_targets) # On met à jour la métrique avec toutes les prédictions et cibles collectées
+    metric_global = MeanAveragePrecision()
+    metric_global.update(all_preds, all_targets)
     map_dict = metric_global.compute()
     
-    # Calcul détaillé pour notre courbe (0.50 à 0.95)
     iou_thresholds = [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
     map_values = []
     
     print("Calcul détaillé par seuil d'IoU...")
     for iou in iou_thresholds:
-        # On force la métrique à ne calculer que pour Ce seuil précis
         metric_temp = MeanAveragePrecision(iou_thresholds=[iou])
         metric_temp.update(all_preds, all_targets)
         temp_dict = metric_temp.compute()
@@ -86,12 +102,11 @@ par exemple)."""
         
     return map_dict, iou_thresholds, map_values
 
+
 def evaluate_sweet_spot(model, val_loader, device):
-    """Évalue la précision, le rappel et le F1-score du modèle sur l'ensemble de validation pour une gamme de seuils de score de confiance 
-        (de 0.0 à 0.95 par exemple) afin d'identifier le "sweet spot" optimal."""
+    """Calcule la précision, le rappel et le F1-score selon les seuils de confiance."""
     model.eval()
-    y_true_raw, y_scores_raw = [], [] # Ces listes vont stocker les étiquettes de vérité terrain (1 pour vrai positif, 0 pour faux positif) 
-                                       # et les scores de confiance correspondants pour toutes les prédictions à travers tous les seuils d'IoU
+    y_true_raw, y_scores_raw = [], [] 
     total_gt_objects = 0
 
     with torch.no_grad():
@@ -133,7 +148,6 @@ def evaluate_sweet_spot(model, val_loader, device):
                         y_true_raw.append(0) 
                     y_scores_raw.append(pred_scores[p_idx].item())
 
-    # Analyse des seuils
     thresholds = np.arange(0.0, 0.95, 0.05)
     precisions, recalls, f1_scores = [], [], []
 

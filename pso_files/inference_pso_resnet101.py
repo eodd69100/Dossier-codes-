@@ -37,7 +37,7 @@ def etat_ouverture(box, fenetre_height):
     ratio_couverture = hauteur_boite / fenetre_height
     
     # Calibration : Si le modèle couvre plus de 90% de la fenêtre, on force à 0% (Fermé)
-    if ratio_couverture>=0.98:
+    if ratio_couverture>=0.99:
         ouverture = 0.0
     else:
         ouverture = (1 - ratio_couverture) * 100
@@ -64,7 +64,7 @@ def main(model_path, image_test_path,seuil_salle,hauteur_fenetre_haut,hauteur_fe
     model.eval()
 
     print("\nAnalyse de l'image en cours")
-    boites, _ = detect_pso(model, image_test_path, threshold=0.85, device=device)
+    boites, _ = detect_pso(model, image_test_path, threshold=0.6, device=device)
     print(f"Nombre d'objets détectés : {len(boites)}")
 
     image_originale = cv2.imread(image_test_path)
@@ -145,10 +145,11 @@ def main(model_path, image_test_path,seuil_salle,hauteur_fenetre_haut,hauteur_fe
 
 if __name__ == "__main__":
     model_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\pso_files\faster_pso_resnet101_best.pth"
-    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Continuous_PSO.v6i.coco\test\images\redressee_SYFW2360.jpg"
-    seuil_salle = 80
-    hauteur_fenetre_haut = 152
-    hauteur_fenetre_bas = 143
-
+    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Dataset_Redressee_anatole\redressee_SYFW0256.JPG"
+    imag_size = cv2.imread(image_test_path).shape
+    seuil_salle = imag_size[0] // 2  # On considère que la salle est divisée en deux par la moitié de la hauteur de l'image
+    hauteur_fenetre_haut =371
+    hauteur_fenetre_bas =352
+    
     main(model_path, image_test_path, seuil_salle, hauteur_fenetre_haut, hauteur_fenetre_bas)
     

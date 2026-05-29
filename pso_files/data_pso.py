@@ -5,19 +5,12 @@ import torch
 from PIL import Image
 from torchvision.transforms import functional as F
 from torch.utils.data import Dataset, DataLoader
-
-import os
-import json
-import torch
-from PIL import Image
-
-# Les deux NOUVELLES librairies magiques pour la Data Augmentation
 from torchvision.transforms import v2
 from torchvision import tv_tensors
-from torch.utils.data import Dataset, DataLoader
 
 class COCODatasetPSO(Dataset):
-    # Ajout du paramètre "transforms"
+    """Dataset personnalisé pour le format COCO adapté à notre tâche de détection de pso.
+      Il lit les images et leurs annotations à partir d'un dossier et d'un fichier JSON,"""
     def __init__(self, img_folder, annotation_file, transforms=None):
         self.img_folder = img_folder
         self.transforms = transforms # On stocke nos transformations
@@ -27,7 +20,7 @@ class COCODatasetPSO(Dataset):
 
         self.images = data["images"]
         self.annotations = data["annotations"]
-        self.cat_to_label = {1: 1}  # pso a l'id 1 dans les annotations, et on veut que le modèle le reconnaisse comme la classe 1 (pas de classe 0 pour le fond)
+        self.cat_to_label = {1: 1,2:1}  # pso a l'id 1 et 2 dans les annotations, et on veut que le modèle le reconnaisse comme la classe 1 (pas de classe 0 pour le fond)
 
         self.image_to_annots = {}
         for ann in self.annotations:
@@ -65,7 +58,7 @@ class COCODatasetPSO(Dataset):
             boxes_tensor = torch.tensor(boxes, dtype=torch.float32)
             labels_tensor = torch.tensor(labels, dtype=torch.int64)
 
-        # L'ASTUCE EST ICI : On emballe nos boîtes dans un objet "BoundingBoxes".
+        # On emballe nos boîtes dans un objet "BoundingBoxes".
         # Ainsi, si v2 retourne l'image, il saura comment retourner ces boîtes !
         tv_boxes = tv_tensors.BoundingBoxes(
             boxes_tensor, 
@@ -79,7 +72,7 @@ class COCODatasetPSO(Dataset):
             "image_id": torch.tensor([img_id])
         }
 
-        # Si on a défini des transformations (ex: pendant l'entraînement), on les applique !
+        
         if self.transforms is not None:
             img, target = self.transforms(img, target)
 
@@ -88,37 +81,39 @@ class COCODatasetPSO(Dataset):
 def collate_fn(batch):
     return tuple(zip(*batch))
 
-# --- LE PIPELINE DE DATA AUGMENTATION ---
+# PIPELINE DE DATA AUGMENTATION 
+
 def get_transforms(train):
     transforms = []
     
-    # 1. Transformations UNIQUEMENT pour l'entraînement
+    # Transformations UNIQUEMENT pour l'entraînement
     if train:
-        # A. Symétrie horizontale (1 chance sur 2)
-        # Ça casse la mémorisation du "les fenêtres sont toujours à gauche"
+        #  Symétrie horizontale (1 chance sur 2)
+        # Ça casse la mémorisation du "les pso sont toujours à gauche"
         transforms.append(v2.RandomHorizontalFlip(p=0.5))
         
-        # B. Jittering de couleur
+        # Jittering de couleur
         # Simule des photos prises le matin, le soir, sous les nuages ou en plein soleil
-        transforms.append(v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2))
+        transforms.append(v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2)) #
         
-        # C. Zoom / Dézoom aléatoire (Échelle)
-        # Force le modèle à comprendre la texture d'une fenêtre peu importe sa taille
-        transforms.append(v2.RandomZoomOut(fill=0, p=0.2))
-
-    # 2. Transformations OBLIGATOIRES (pour Train ET Validation)
-    # Convertit l'image PIL en Tenseur PyTorch normalisé (remplace F.to_tensor)
+        # Zoom / Dézoom aléatoire (Échelle)
+        # Force le modèle à comprendre la texture d'un pso peu importe sa taille
+        transforms.append(v2.RandomZoomOut(fill=0, p=0.2)) # 
+        # rotation aléatoire (petits angles)
+       # transforms.append(v2.RandomRotation(degrees=(-10, 10))) # on peut faire du -15 à +15 degrés, mais pas plus pour éviter de faire des images irréalistes
+    # Transformations OBLIGATOIRES: (pour Train ET Validation)
+    # Convertit l'image PIL en Tenseur PyTorch normalisé
     transforms.append(v2.ToImage()) 
     transforms.append(v2.ToDtype(torch.float32, scale=True))
     
     return v2.Compose(transforms)
 
-def get_dataloaders(train_img, train_ann, val_img, val_ann, batch_size=2):
+def get_dataloaders(train_img, train_ann, val_img, val_ann, batch_size=2): 
     # On applique les augmentations lourdes sur le Train
     train_dataset = COCODatasetPSO(
         img_folder=train_img, 
         annotation_file=train_ann, 
-        transforms=get_transforms(train=True)
+        transforms=get_transforms(train=True) 
     )
     
     # On n'applique AUCUNE augmentation sur la Validation (juste la conversion en Tenseur)

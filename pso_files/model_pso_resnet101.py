@@ -13,7 +13,7 @@ def create_model(num_classes, pretrained=True):
     backbone = resnet_fpn_backbone(backbone_name='resnet101', weights=weights)
     
     # Générateur d'ancres personnalisé
-    anchor_sizes = ((32,), (64,), (128,), (256,), (512,))
+    anchor_sizes = ((32,), (64,), (128,), (256,), (512,)) # Ancre de base pour les petites fenêtres et les pso, puis des tailles plus grandes pour les fenêtres plus grandes
     aspect_ratios = ((0.25, 0.5, 1.0, 2.0, 3.0, 4.0),) * len(anchor_sizes)
     custom_anchor_generator = AnchorGenerator(anchor_sizes, aspect_ratios)
     
