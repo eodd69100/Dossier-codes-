@@ -1,102 +1,86 @@
 import torch
 import torch.nn.functional as F_nn
 import cv2
+import numpy as np
 from PIL import Image
 from torchvision import transforms
-
 from model_fenet_convnext import create_model
 
-def predict_window_state(model, image_path, device):
-    """ Prend UNE image de fenêtre découpée et prédit son état. """
-    #  Charger l'image avec PIL
-    try:
-        img = Image.open(image_path).convert("RGB")
-    except FileNotFoundError:
-        print(f"Erreur : Impossible de trouver l'image {image_path}")
-        return None, None
 
-    # Préparer l'image EXACTEMENT comme ConvNeXt l'attend (224x224)
+
+""""Ce script implémente une fonction d'inférence pour notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il charge le modèle entraîné, effectue l'inférence sur une image de test, et affiche les résultats en annotant l'image avec les boîtes de détection et les pourcentages d'ouverture calculés à partir des hauteurs des boîtes détectées.
+Il inclut également une fonction pour appliquer les mêmes traitements d'expert (Padding carré + CLAHE) que ceux utilisés lors de l'entraînement, afin d'assurer une cohérence maximale entre les données d'entraînement et d'inférence, ce qui est crucial pour la performance du modèle.   """
+
+def appliquer_traitement_expert(crop_img):
+    """
+    Applique le Padding et le CLAHE exactement comme lors de l'entraînement.
+    C'est CRUCIAL pour que le modèle reconnaisse les mêmes motifs.
+    """
+    # 1. Padding Carré
+    h, w = crop_img.shape[:2]
+    max_side = max(h, w)
+    toile = np.zeros((max_side, max_side, 3), dtype=np.uint8)
+    toile[(max_side-h)//2:(max_side-h)//2+h, (max_side-w)//2:(max_side-w)//2+w] = crop_img
+    
+    # 2. CLAHE (Local Contrast)
+    lab = cv2.cvtColor(toile, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    cl = clahe.apply(l)
+    img_contrast = cv2.cvtColor(cv2.merge((cl, a, b)), cv2.COLOR_LAB2BGR)
+    
+    return cv2.resize(img_contrast, (224, 224))
+
+def main(model_path, facade_path, liste_fenetres):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = create_model(num_classes=2).to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+
+    img_facade = cv2.imread(facade_path)
+    img_visu = img_facade.copy()
+
     transform = transforms.Compose([
-        transforms.Resize((224, 224)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    # Ajouter la dimension "Batch" pour faire [1, 3, 224, 224]
-    img_tensor = transform(img).unsqueeze(0).to(device)
+    print(f"Analyse de {len(liste_fenetres)} fenêtres sur la façade...")
 
-    # Prédiction
-    with torch.no_grad():
-        outputs = model(img_tensor)
-
-    # Traduire la sortie mathématique en pourcentages avec Softmax
-    probabilites = F_nn.softmax(outputs, dim=1)[0]
-    
-    # En PyTorch, les dossiers sont souvent lus par ordre alphabétique :
-    # 0 = ferme, 1 = ouvert
-    score_ferme = probabilites[0].item() * 100
-    score_ouvert = probabilites[1].item() * 100
-
-    #  Déterminer le gagnant
-    if score_ouvert > score_ferme:
-        return "Ouvert", score_ouvert
-    else:
-        return "Ferme", score_ferme
-
-
-def main(model_path, image_test_path):
-    print("="*50)
-    print(" Test du modèle Expert ConvNeXt (Classification) ")
-    print("="*50)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Appareil utilisé : {device}")
-
-    # Chargement du modèle (2 classes)
-    print("\nChargement du modèle...")
-    model = create_model(num_classes=2)
-    try:
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        print(" -> Modèle chargé avec succès !")
-    except FileNotFoundError:
-        print(f"Erreur : Le fichier {model_path} est introuvable.")
-        return
-
-    model = model.to(device)
-    model.eval()
-
-    # Prédiction sur l'image
-    print("\nAnalyse de l'image en cours...")
-    etat, confiance = predict_window_state(model, image_test_path, device)
-    
-    if etat is None:
-        return
-
-    # Affichage des résultats dans le terminal
-    print("\n" + "="*40)
-    print(" RÉSULTAT DE L'ANALYSE :")
-    print(f" -> Cette fenêtre est {etat.upper()} (Certitude : {confiance:.1f}%)")
-    print("="*40)
-
-    # Sauvegarde visuelle avec OpenCV
-    img_cv2 = cv2.imread(image_test_path)
-    if img_cv2 is not None:
-        # On écrit le texte sur l'image
-        texte = f"Etat: {etat} ({confiance:.1f}%)"
-        couleur = (0, 255, 0) if etat == "Ouvert" else (0, 0, 255) # Vert si ouvert, Rouge si fermé
+    for (x, y, w, h) in liste_fenetres:
+        # 1. Extraire le crop
+        crop = img_facade[y:y+h, x:x+w]
         
-        # Petit fond noir pour la lisibilité
-        cv2.rectangle(img_cv2, (0, 0), (350, 40), (0, 0, 0), -1)
-        cv2.putText(img_cv2, texte, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, couleur, 2)
+        # 2. Appliquer les mêmes traitements que durant l'entraînement
+        crop_expert = appliquer_traitement_expert(crop)
         
-        nom_sortie = "resultat_classification_convnext.jpg"
-        cv2.imwrite(nom_sortie, img_cv2)
-        print(f"\nImage de résultat sauvegardée sous '{nom_sortie}'")
+        # 3. Préparer pour ConvNeXt
+        crop_rgb = cv2.cvtColor(crop_expert, cv2.COLOR_BGR2RGB)
+        img_tensor = transform(Image.fromarray(crop_rgb)).unsqueeze(0).to(device)
 
+        # 4. Inférence
+        with torch.no_grad():
+            output = model(img_tensor)
+            prob = F_nn.softmax(output, dim=1)[0]
+            etat = "Ouvert" if prob[1] > prob[0] else "Ferme"
+            conf = prob[1] if etat == "Ouvert" else prob[0]
+
+        # 5. Dessiner sur la façade
+        couleur = (0, 255, 0) if etat == "Ouvert" else (0, 0, 255)
+        cv2.rectangle(img_visu, (x, y), (x + w, y + h), couleur, 2)
+        cv2.putText(img_visu, f"{etat} {conf:.2f}", (x, y - 5), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, couleur, 2)
+
+    cv2.imwrite("resultat_final_facade.jpg", img_visu)
+    print("Analyse terminée ! Résultat : resultat_final_facade.jpg")
 
 if __name__ == "__main__":
-    # Tes chemins vers le modèle ConvNeXt et la petite image croppée
-    model_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\windows_anatole_files\convnextv2_expert_fenetres.pth"
-    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\brouillon\pso_img1_ann30.jpg"
+    # Liste de vos coordonnées de fenêtres détectées (x, y, w, h)
+    # Dans le futur, ces coordonnées viendront de votre modèle Faster R-CNN
+    mes_fenetres = [[50, 50, 150, 150], [250, 50, 150, 150]] 
     
-    main(model_path, image_test_path)
+    path_model = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\windows_anatole_files\convnextv2_expert_fenetres.pth"
+    Image_path=r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\pso_files\resultat_resnet101.jpg"
+
+    main(path_model, Image_path, mes_fenetres)

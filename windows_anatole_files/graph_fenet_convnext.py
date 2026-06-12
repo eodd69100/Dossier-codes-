@@ -5,6 +5,12 @@ from sklearn.metrics import confusion_matrix, precision_recall_curve, average_pr
 import torch
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+"""
+Ce script contient des fonctions de visualisation et de génération de graphiques pour notre projet de classification de fenêtres avec ConvNeXT.
+Il inclut des fonctions pour générer la courbe de chute de la perte (Loss), une heatmap de la matrice de confusion pour visualiser les erreurs de classification, et une courbe Précision-Rappel pour évaluer les performances du modèle sur la classe "Ouvert".
+Ces fonctions sont utilisées dans le script principal pour suivre l'évolution de la perte et des métriques au fil des époques, et pour analyser les résultats de classification de manière visuelle et informative."""
+
+
 # ==========================================
 # COURBES D'APPRENTISSAGE (LOSS)
 # ==========================================

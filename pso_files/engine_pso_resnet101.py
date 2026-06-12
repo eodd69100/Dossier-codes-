@@ -3,6 +3,12 @@ import numpy as np
 from torchvision.ops import box_iou
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 
+
+"""Ce fichier contient les fonctions d'entraînement et d'évaluation pour notre modèle de détection de PSO basé sur Faster R-CNN avec un backbone ResNet101.
+Il inclut : train_one_epoch() pour l'entraînement d'une époque, evaluate_loss() pour calculer la perte sur le jeu de validation,
+ evaluate_map_all_ious() pour évaluer le mAP à différents seuils d'IoU"""
+
+
 def train_one_epoch(model, optimizer, data_loader, device):
     """Effectue une époque d'entraînement en suivant séparément les pertes de classification 
     et de régression des boîtes, avec sécurité anti-explosion de gradient."""
@@ -16,30 +22,25 @@ def train_one_epoch(model, optimizer, data_loader, device):
         images = list(image.to(device) for image in images)
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         
-        # Le modèle calcule les composants de la perte
         loss_dict = model(images, targets)
         losses = sum(loss for loss in loss_dict.values())
         
-        # Extraction des pertes individuelles pour le suivi détaillé
         perte_totale_batch = losses.item()
         perte_cls_batch = loss_dict['loss_classifier'].item()
         perte_reg_batch = loss_dict['loss_box_reg'].item()
         
-        # Accumulation dans nos compteurs
         running_total_loss += perte_totale_batch
         running_cls_loss += perte_cls_batch
         running_reg_loss += perte_reg_batch
         
-        # Rétropropagation
         optimizer.zero_grad()
         losses.backward()
         
-        # SÉCURITÉ : Empêche les gradients d'exploser (repris de votre première fonction)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # SÉCURITÉ : réduit de 1.0 à 0.5 pour stabiliser l'entraînement
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.5)
         
         optimizer.step()
         
-    # Calcul de la moyenne par batch pour cette époque
     num_batches = len(data_loader)
     epoch_total_loss = running_total_loss / num_batches
     epoch_cls_loss = running_cls_loss / num_batches
@@ -50,11 +51,24 @@ def train_one_epoch(model, optimizer, data_loader, device):
 
 def evaluate_loss(model, data_loader, device):
     """Calcule la perte moyenne sur le jeu de validation.
-    Note : Faster R-CNN requiert model.train() pour accepter de calculer une perte."""
-    model.train()  # Crucial pour forcer le calcul des pertes de validation
+    
+    Faster R-CNN exige model.train() pour calculer les losses (en mode eval() il
+    retourne uniquement les boîtes prédites). On gèle manuellement le BatchNorm2d
+    (ResNet) pour qu'il utilise ses statistiques figées plutôt que celles du batch
+    de validation — la val_loss est ainsi plus représentative.
+    Note : ConvNeXtV2 utilise LayerNorm (pas BatchNorm2d), ce fix est donc sans
+    effet avec ce backbone mais le code reste compatible.
+    """
+    model.train()
+
+    # Gèle le BatchNorm2d (utile pour ResNet, sans effet pour ConvNeXtV2)
+    for module in model.modules():
+        if isinstance(module, torch.nn.BatchNorm2d):
+            module.eval()
+
     running_val_loss = 0.0
     
-    with torch.no_grad():  # On désactive la mise à jour des poids
+    with torch.no_grad():
         for images, targets in data_loader:
             images = list(image.to(device) for image in images)
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -69,7 +83,7 @@ def evaluate_loss(model, data_loader, device):
 
 def evaluate_map_all_ious(model, val_loader, device):
     """Évalue le mAP du modèle sur l'ensemble de validation pour une gamme de seuils d'IoU (0.50 à 0.95)."""
-    model.eval() # Mode évaluation standard pour obtenir des boîtes prédictives
+    model.eval()
     
     all_preds = []
     all_targets = []
@@ -106,7 +120,7 @@ def evaluate_map_all_ious(model, val_loader, device):
 def evaluate_sweet_spot(model, val_loader, device):
     """Calcule la précision, le rappel et le F1-score selon les seuils de confiance."""
     model.eval()
-    y_true_raw, y_scores_raw = [], [] 
+    y_true_raw, y_scores_raw = [], []
     total_gt_objects = 0
 
     with torch.no_grad():
@@ -131,7 +145,7 @@ def evaluate_sweet_spot(model, val_loader, device):
                 pred_scores = pred_scores[indices_tries]
 
                 ious = box_iou(pred_boxes, gt_boxes)
-                gt_verrouilles = set() 
+                gt_verrouilles = set()
 
                 for p_idx in range(len(pred_boxes)):
                     meilleur_iou = 0
@@ -142,10 +156,10 @@ def evaluate_sweet_spot(model, val_loader, device):
                             meilleur_gt_idx = g_idx
                     
                     if meilleur_iou >= 0.50 and meilleur_gt_idx not in gt_verrouilles:
-                        y_true_raw.append(1) 
-                        gt_verrouilles.add(meilleur_gt_idx) 
+                        y_true_raw.append(1)
+                        gt_verrouilles.add(meilleur_gt_idx)
                     else:
-                        y_true_raw.append(0) 
+                        y_true_raw.append(0)
                     y_scores_raw.append(pred_scores[p_idx].item())
 
     thresholds = np.arange(0.0, 0.95, 0.05)
@@ -153,8 +167,8 @@ def evaluate_sweet_spot(model, val_loader, device):
 
     for thresh in thresholds:
         valides = [i for i, score in enumerate(y_scores_raw) if score >= thresh]
-        tp = sum(y_true_raw[i] for i in valides) 
-        fp = len(valides) - tp                  
+        tp = sum(y_true_raw[i] for i in valides)
+        fp = len(valides) - tp
         
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / total_gt_objects if total_gt_objects > 0 else 0.0

@@ -1,6 +1,12 @@
 import torch
 from tqdm import tqdm
 
+"""
+Ce script implémente les fonctions d'entraînement et d'évaluation pour notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il inclut une fonction train_one_epoch() qui exécute une époque complète d'apprentissage (passage avant + rétropropagation), et une fonction evaluate_loss()
+ qui évalue le modèle sur un jeu de validation sans modifier les gradients.
+Ces fonctions sont utilisées dans le script principal pour entraîner le modèle et suivre l'évolution de la perte"""
+
 def train_one_epoch(model, optimizer, criterion, data_loader, device):
     """Exécute une époque complète d'apprentissage (Passage avant + Rétropropagation)."""
     model.train()

@@ -3,7 +3,7 @@ import cv2
 from PIL import Image
 from torchvision.transforms import functional as F
 
-from Codes.windows_anatole_files.model_fenet_resnet101 import create_model
+from Codes.windows_anatole_files.model_fenet_convnext import create_model
 
 def detect_windows(model, image_path, threshold, device):
     img = Image.open(image_path).convert("RGB")

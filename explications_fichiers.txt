@@ -1,0 +1,124 @@
+
+Ce rapport contient des explications sur chaque modèle/dataset
+
+
+1. Cas des Pso:
+ - Data_pso.py:
+ Ce fichier contient la classe COCODatasetPSO qui est un Dataset personnalisé pour le format COCO adapté à notre tâche de détection de PSO.
+Il lit les images et leurs annotations à partir d'un dossier et d'un fichier JSON, et prépare les données pour l'entraînement de notre modèle de détection.
+
+- engine_pso_resnet101.py:
+
+Ce fichier contient les fonctions d'entraînement et d'évaluation pour notre modèle de détection de PSO basé sur Faster R-CNN avec un backbone ResNet101.
+Il inclut : train_one_epoch() pour l'entraînement d'une époque, evaluate_loss() pour calculer la perte sur le jeu de validation,
+ evaluate_map_all_ious() pour évaluer le mAP à différents seuils d'IoU.
+
+- gradcam_pso.py:
+
+Ce script implémente une version corrigée de Grad-CAM adaptée à Faster R-CNN, qui prend en compte les spécificités de ce modèle 
+(notamment la présence de plusieurs PSO détectés dans une même image). Il génère des cartes de chaleur pour les zones d'attention du modèle, en se basant sur la somme des scores de tous les PSO détectés au-dessus d'un seuil de confiance.
+Il inclut également des fonctions utilitaires pour la superposition de la heatmap sur l'image originale et le dessin des boîtes de détection, avec une visualisation claire et informative."""
+
+
+- graph_pso_resnet101.py:
+
+Ce fichier contient des fonctions de visualisation pour notre projet de détection de PSO avec Faster R-CNN et ResNet101.
+Il inclut : plot_and_save_losses() pour tracer et sauvegarder les courbes d'évolution des pertes d'entraînement et de validation, 
+plot_map_iou_curve() pour visualiser la dégradation du mAP selon différents seuils d'IoU, et plot_threshold_analysis() pour
+ analyser les performances du modèle en fonction du seuil de confiance utilisé pour la détection des PSO.
+
+
+ - inference_pso_resnet101.py:
+Ce script implémente une fonction d'inférence pour notre modèle de détection de PSO basé sur Faster R-CNN avec un backbone ResNet-101. 
+Il charge le modèle entraîné, effectue la détection sur une image de test, et affiche les résultats en annotant l'image avec les boîtes
+ de détection et les pourcentages d'ouverture calculés à partir des hauteurs des boîtes détectées.
+
+
+- main_pso_resnet101.py:
+
+Ce script implémente une fonction d'inférence pour notre modèle de détection de PSO basé sur Faster R-CNN avec un backbone ResNet-101. 
+Il charge le modèle entraîné, effectue la détection sur une image de test,  et affiche les résultats en annotant l'image avec les boîtes 
+de détection et les pourcentages d'ouverture calculés à partir des hauteurs des boîtes détectées. Il inclut également une fonction pour 
+séparer les boîtes détectées en deux étages (haut et bas) selon leur position verticale, ainsi qu'une fonction de calibration pour ajuster
+ les pourcentages d'ouverture en fonction de la hauteur des boîtes détectées.
+
+ - model_pso.py :
+
+Ce script définit la fonction create_model() qui construit notre modèle de détection de PSO basé sur Faster R-CNN avec un backbone ResNet-101.
+Il utilise des poids pré-entraînés sur ImageNet pour le backbone, et un générateur d'ancres personnalisé adapté à la détection de petites fenêtres et de PSO.
+Cette fonction est utilisée dans le script d'entraînement pour initialiser le modèle avant de le former sur notre dataset spécifique.
+
+
+Cas des fenêtres Anatole France:
+
+- Data_fenet_cropee.py:
+
+Ce script implémente un dataset personnalisé pour la classification des fenêtres en "fermé" ou "ouvert" à partir d'une arborescence de dossiers.
+Il inclut des fonctions de prétraitement spécifiques pour rendre les images carrées sans déformation, ainsi qu'une égalisation d'histogramme locale (CLAHE) pour améliorer le contraste et faire ressortir les montants et perspectives des fenêtres.   
+
+
+engine_fenet_convnext.py
+
+Ce script implémente les fonctions d'entraînement et d'évaluation pour notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il inclut une fonction train_one_epoch() qui exécute une époque complète d'apprentissage (passage avant + rétropropagation), et une fonction evaluate_loss()
+ qui évalue le modèle sur un jeu de validation sans modifier les gradients. Ces fonctions sont utilisées dans le script principal 
+ pour entraîner le modèle et suivre l'évolution de la perte.
+
+
+ - Extract_coord.py:
+
+ Ce script implémente une fonction d'extraction des coordonnées des fenêtres détectées par notre modèle FasterR-CNN avec un backbone ResNet-101.
+ Il charge le modèle entraîné, effectue la détection sur une image de test, et retourne les coordonnées des boîtes détectées au format [xmin, ymin, xmax, ymax].
+Ces coordonnées peuvent ensuite être utilisées pour recadrer les images de fenêtres et les injecter dans notre modèle de classification ConvNeXT."""
+
+
+-graph_fent_convnext.py:
+
+Ce script contient des fonctions de visualisation et de génération de graphiques pour notre projet de classification de fenêtres avec ConvNeXT.
+Il inclut des fonctions pour générer la courbe de chute de la perte (Loss), une heatmap de la matrice de confusion pour visualiser les erreurs de classification, et une courbe Précision-Rappel pour évaluer les performances du modèle sur la classe "Ouvert".
+Ces fonctions sont utilisées dans le script principal pour suivre l'évolution de la perte et des métriques au fil des époques, et pour analyser les résultats de classification de manière visuelle et informative."""
+
+- inference_fenet_convnext.py:
+
+"""" Ce script implémente une fonction d'inférence pour notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il charge le modèle entraîné, effectue l'inférence sur une image de test, et affiche les résultats en annotant l'image avec les boîtes de détection et les niveaux de cpnfiance d'ouverture.
+Il inclut également une fonction pour appliquer les mêmes traitements d'expert (Padding carré + CLAHE) que ceux utilisés lors de l'entraînement, afin d'assurer une cohérence maximale entre 
+les données d'entraînement et d'inférence, ce qui est crucial pour la performance du modèle."""
+
+
+- Inférence_fenet_convnext.py:
+
+"""
+Ce script implémente une fonction d'inférence pour notre pipeline de détection et classification de fenêtres.
+Il charge à la fois le modèle de détection de PSO (Faster R-CNN avec ResNet-101) et le modèle de classification 
+de fenêtres (ConvNeXT), effectue la détection des fenêtres sur une image de test, applique les mêmes traitements 
+d'expert que ceux utilisés lors de l'entraînement, et affiche les résultats en annotant l'image avec les boîtes de détection 
+et les pourcentages d'ouverture calculés à partir des hauteurs des boîtes détectées.
+Il inclut également une fonction pour séparer les boîtes détectées en deux étages (haut et bas) selon leur position verticale,
+ainsi qu'une fonction de calibration pour ajuster les pourcentages d'ouverture en fonction de la hauteur des boîtes détectées.       
+"""
+
+
+main_fenet_convnext.py:
+
+""""
+Ce script implémente la fonction principale pour entraîner notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il suit une structure modulaire en trois étapes :
+1. Configuration des données : Chargement et préparation du dataset de classification à partir d'une arborescence de dossiers, avec des fonctions de prétraitement spécifiques pour rendre les images carrées sans déformation, ainsi qu'une égalisation d'histogramme locale (CLAHE) pour améliorer le contraste et faire ressortir les montants et perspectives des fenêtres.
+2. Initialisation du modèle : Création de l'instance du modèle ConvNeXT, définition de la fonction de perte, de l'optimiseur et du scheduler pour le suivi de la performance.
+3. Phase d'optimisation et d'entraînement : Boucle d'apprentissage avec suivi de la perte et de l'exactitude, sauvegarde du meilleur modèle, et génération de graphiques pour le rapport final (courbe de perte, matrice de confusion, courbe Précision-Rappel).
+"""
+
+
+
+model_fenet_convnext.py:
+
+"""
+Ce script définit la structure de notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il utilise la bibliothèque timm pour charger un modèle pré-entraîné sur ImageNet, et gèle les poids 
+du backbone pour ne réentraîner que la tête de classification adaptée à notre tâche binaire (Ouvert vs Fermé).
+Cette fonction create_model() est utilisée dans le script d'entraînement pour initialiser le modèle avant de le 
+former sur notre dataset spécifique.
+"""
+
+

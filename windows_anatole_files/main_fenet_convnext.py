@@ -15,8 +15,17 @@ from sklearn.metrics import confusion_matrix, precision_recall_curve, auc
 from data_fenet_cropee import get_dataloaders
 from model_fenet_convnext import create_model
 from engine_fenet_convnext import train_one_epoch, evaluate_loss
-from graph_fenet_connext import generer_courbes, generer_matrice_confusion, generer_courbe_pr
+from Codes.windows_anatole_files.graph_fenet_convnext import generer_courbes, generer_matrice_confusion, generer_courbe_pr
 
+
+
+""""
+Ce script implémente la fonction principale pour entraîner notre modèle de classification de fenêtres basé sur ConvNeXT.
+Il suit une structure modulaire en trois étapes :
+1. Configuration des données : Chargement et préparation du dataset de classification à partir d'une arborescence de dossiers, avec des fonctions de prétraitement spécifiques pour rendre les images carrées sans déformation, ainsi qu'une égalisation d'histogramme locale (CLAHE) pour améliorer le contraste et faire ressortir les montants et perspectives des fenêtres.
+2. Initialisation du modèle : Création de l'instance du modèle ConvNeXT, définition de la fonction de perte, de l'optimiseur et du scheduler pour le suivi de la performance.
+3. Phase d'optimisation et d'entraînement : Boucle d'apprentissage avec suivi de la perte et de l'exactitude, sauvegarde du meilleur modèle, et génération de graphiques pour le rapport final (courbe de perte, matrice de confusion, courbe Précision-Rappel).
+"""
 
 # CLASSE GRAD-CAM SUR MESURE POUR CONVNEXT
 
@@ -183,7 +192,7 @@ def main(DOSSIER_UNIQUE_CLASSIF):
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     
     cv2.imwrite("rapport_gradcam_convnext.png", superimposed_img)
-    print("Tous les graphiques et le Grad-CAM ont été générés avec succès !")
+    print("Tous les graphiques et le Grad-CAM ont été générés avec succès")
 
 if __name__ == "__main__":
     DOSSIER_UNIQUE_CLASSIF = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\dataset_classification"

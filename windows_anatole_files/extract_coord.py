@@ -2,9 +2,14 @@ import torch
 import cv2
 from PIL import Image
 from torchvision.transforms import functional as F
-from Codes.pso_fles.model_pso_resnet101 import create_model
+from model_fenet_convnext import create_model
 
-def get_pso_coordinates(model, image_path, threshold, device):
+"""Ce script implémente une fonction d'extraction des coordonnées des fenêtres détectées par notre modèle Faster
+    R-CNN avec un backbone ResNet-101.
+ Il charge le modèle entraîné, effectue la détection sur une image de test, et retourne les coordonnées des boîtes détectées au format [xmin, ymin, xmax, ymax].
+Ces coordonnées peuvent ensuite être utilisées pour recadrer les images de fenêtres et les injecter dans notre modèle de classification ConvNeXT."""
+
+def get_fenet_coordinates(model, image_path, threshold, device):
     """
     Retourne uniquement les coordonnées des boîtes détectées [xmin, ymin, xmax, ymax]
     """
@@ -29,7 +34,7 @@ def main_extraction(model_path, image_test_path):
     model.eval()
 
     # Appel de la fonction qui renvoie les coordonnées
-    coordonnees = get_pso_coordinates(model, image_test_path, threshold=0.65, device=device)
+    coordonnees = get_fenet_coordinates(model, image_test_path, threshold=0.65, device=device)
     
     print(f"Extraction terminée : {len(coordonnees)} fenêtres trouvées.")
     

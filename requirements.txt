@@ -1,0 +1,36 @@
+# Core Deep Learning
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Metrics
+torchmetrics>=1.0.0
+
+# Data & Numerics
+numpy>=1.24.0
+scipy>=1.10.0
+pandas>=2.0.0
+
+# Image Processing
+Pillow>=9.5.0
+opencv-python>=4.7.0
+albumentations>=1.3.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+tensorboard>=2.13.0
+
+# Utilities
+tqdm>=4.65.0
+PyYAML>=6.0
+pycocotools>=2.0.6
+
+# Experiment Tracking (optionnel mais recommandé)
+mlflow>=2.4.0
+
+# Serialization & Config
+omegaconf>=2.3.0
+
+# Type hints & code quality
+typing-extensions>=4.5.0

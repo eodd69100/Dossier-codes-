@@ -5,6 +5,11 @@ from torchvision.transforms import functional as F
 
 from model_pso_resnet101 import create_model
 
+"""
+Ce script implémente une fonction d'inférence pour notre modèle de détection de PSO basé sur Faster R-CNN avec un backbone ResNet-101. 
+Il charge le modèle entraîné, effectue la détection sur une image de test, 
+et affiche les résultats en annotant l'image avec les boîtes de détection et les pourcentages d'ouverture calculés à partir des hauteurs des boîtes détectées."""
+
 def detect_pso(model, image_path, threshold, device):
     """Détecte les PSO dans une image donnée en utilisant le modèle entraîné."""
     img = Image.open(image_path).convert("RGB")
@@ -64,7 +69,7 @@ def main(model_path, image_test_path,seuil_salle,hauteur_fenetre_haut,hauteur_fe
     model.eval()
 
     print("\nAnalyse de l'image en cours")
-    boites, _ = detect_pso(model, image_test_path, threshold=0.6, device=device)
+    boites, _ = detect_pso(model, image_test_path, threshold=0.650,device=device)
     print(f"Nombre d'objets détectés : {len(boites)}")
 
     image_originale = cv2.imread(image_test_path)
@@ -145,11 +150,11 @@ def main(model_path, image_test_path,seuil_salle,hauteur_fenetre_haut,hauteur_fe
 
 if __name__ == "__main__":
     model_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\pso_files\faster_pso_resnet101_best.pth"
-    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Dataset_Redressee_anatole\redressee_SYFW0256.JPG"
+    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\Continuous_PSO.v7i.yolov8\valid\images\redressee_SYFW2345_JPG.rf.99b3d9c0e4161a05f3e8c64d11dee109.jpg"
     imag_size = cv2.imread(image_test_path).shape
     seuil_salle = imag_size[0] // 2  # On considère que la salle est divisée en deux par la moitié de la hauteur de l'image
-    hauteur_fenetre_haut =371
-    hauteur_fenetre_bas =352
+    hauteur_fenetre_haut =173
+    hauteur_fenetre_bas =171
     
     main(model_path, image_test_path, seuil_salle, hauteur_fenetre_haut, hauteur_fenetre_bas)
     

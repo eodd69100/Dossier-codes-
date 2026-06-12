@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['Continuous-PSO']
+
+roboflow:
+  workspace: konans-workspace
+  project: continuous_pso
+  version: 7
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/konans-workspace/continuous_pso/dataset/7

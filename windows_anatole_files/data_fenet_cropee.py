@@ -6,6 +6,13 @@ import torch
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 from torchvision import transforms
 
+"""
+Ce script implémente un dataset personnalisé pour la classification des fenêtres en "fermé" ou "ouvert" à partir d'une arborescence de dossiers.
+Il inclut des fonctions de prétraitement spécifiques pour rendre les images carrées sans déformation, ainsi qu'une égalisation d'histogramme locale (CLAHE) pour améliorer le contraste et faire ressortir les montants et perspectives des fenêtres.   
+
+
+"""
+
 class WindowFolderDataset(Dataset):
     def __init__(self, dossier_racine, split="train", validation_split=0.2, seed=42, target_size=224):
         self.target_size = target_size
@@ -148,7 +155,7 @@ if __name__ == "__main__":
 
     get_dataloaders(DOSSIER_UNIQUE_CLASSIF, batch_size=4, val_split=0.2) 
 
-    im_chemin = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\dataset_classification\ouvert\pso_img12_ann251.jpg"
+    im_chemin = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\dataset_classification\ouvert\pso_img4_ann88.jpg"
     
     # Charger l'image
     img_bgr = cv2.imread(im_chemin)
@@ -166,10 +173,11 @@ if __name__ == "__main__":
         # 3. Test de CLAHE
         img_clahe = ds.appliquer_clahe(img_bgr)
         
-        # 4. Affichage pour comparer
-        cv2.imshow("Originale", img_bgr)
-        cv2.imshow("Apres CLAHE", img_clahe)
-        
+        # Affichage et sauvegarde pour comparer
+        #cv2.imshow("Originale", img_bgr)
+        #cv2.imshow("Apres CLAHE", img_clahe)
+        cv2.imwrite("test_clahe.jpg", img_clahe)
+        cv2.imwrite("test_originale.jpg", img_bgr)
         print("Appuie sur n'importe quelle touche pour fermer les fenêtres...")
         cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        cv2.destroyAllWindows() 

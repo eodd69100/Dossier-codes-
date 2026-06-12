@@ -3,6 +3,13 @@ import numpy as np
 from torchmetrics.detection.mean_ap import MeanAveragePrecision 
 import torch
 
+
+"""Ce fichier contient des fonctions de visualisation pour notre projet de détection de PSO avec Faster R-CNN et ResNet101.
+Il inclut : plot_and_save_losses() pour tracer et sauvegarder les courbes d'évolution des pertes d'entraînement et de validation, 
+plot_map_iou_curve() pour visualiser la dégradation du mAP selon différents seuils d'IoU, et plot_threshold_analysis() pour
+ analyser les performances du modèle en fonction du seuil de confiance utilisé pour la détection des PSO."""
+
+
 def plot_and_save_losses(train_losses, val_losses, train_cls_losses, train_reg_losses, filename="resnet101_loss_curve.png"):
     plt.figure(figsize=(12, 6))
     

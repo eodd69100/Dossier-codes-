@@ -10,10 +10,20 @@ import sys
 # Chemins d'accès
 sys.path.append(r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes")
 
-# Imports de vos modèles
+# Imports de nos modèles
 from pso_files.model_pso_resnet101 import create_model as create_detecteur_model
 from model_fenet_convnext import create_model as create_expert_model
 
+"""
+Ce script implémente une fonction d'inférence pour notre pipeline de détection et classification de fenêtres.
+Il charge à la fois le modèle de détection de PSO (Faster R-CNN avec ResNet-101) et le modèle de classification de fenêtres (ConvNeXT), effectue la détection des fenêtres sur une image de test, applique les mêmes traitements d'expert que ceux utilisés lors de l'entraînement, et affiche les résultats en annotant l'image avec les boîtes de détection et les pourcentages d'ouverture calculés à partir des hauteurs des boîtes détectées.
+Il inclut également une fonction pour séparer les boîtes détectées en deux étages (haut et bas) selon leur position verticale, ainsi qu'une fonction de calibration pour ajuster les pourcentages d'ouverture en fonction de la hauteur des boîtes détectées.       
+"""
+
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Appareil utilisé pour le calcul : {device}")
 def preprocess_crop(crop_img):
     """Padding carré + CLAHE pour l'expert ConvNeXt (224x224)"""
     h, w = crop_img.shape[:2]
@@ -37,18 +47,18 @@ def detect_windows(model, image_path, threshold, device):
     boxes = outputs["boxes"].cpu().numpy()
     scores = outputs["scores"].cpu().numpy()
     keep = scores > threshold
-    return boxes[keep]
+    return boxes[keep] 
 
 def main(detecteur_path, expert_path, image_test_path):
     device = torch.device("cpu")
     
     # 1. Chargement des modèles
-    detecteur = create_detecteur_model(num_classes=2)
-    detecteur.load_state_dict(torch.load(detecteur_path, map_location=device))
-    detecteur.eval().to(device)
+    detecteur = create_detecteur_model(num_classes=2) #
+    detecteur.load_state_dict(torch.load(detecteur_path, weights_only=True)) # weights_only=True pour ne charger que les poids, pas la structure complète (utile si on a modifié la classe du modèle)
+    detecteur.eval().to(device)# 
     
     expert = create_expert_model(num_classes=2)
-    expert.load_state_dict(torch.load(expert_path, map_location=device))
+    expert.load_state_dict(torch.load(expert_path, weights_only=True))
     expert.eval().to(device)
     
     # 2. Détection
@@ -75,7 +85,7 @@ def main(detecteur_path, expert_path, image_test_path):
             prob = F_nn.softmax(output, dim=1)[0]
             etat = "Ouvert" if prob[1] > prob[0] else "Ferme"
             #if 0.5 < prob[1] < 0.6: etat = "Incertitude"
-            conf = prob[1].item() if etat == "Ouvert" else prob[0].item()
+            conf = prob[1].item() if etat == "Ouvert" else prob[0].item() # 
             
         # Annotation
         couleur = (0, 255, 200) if etat == "Ouvert" else (0, 0, 255)
@@ -87,8 +97,8 @@ def main(detecteur_path, expert_path, image_test_path):
     print("Analyse terminée ! Image sauvegardée : 'resultat_final_pipeline.jpg'")
 
 if __name__ == "__main__":
-    detecteur_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\windows_anatole_files\faster_fenet_resnet101_best.pth"
+    detecteur_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\pso_files\faster_pso_resnet101_best.pth"
     expert_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\windows_anatole_files\convnextv2_expert_fenetres.pth"
-    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Dataset_Redressee_anatole\redressee_SYFW0256.JPG"
+    image_test_path = r"C:\Users\k.nguessan\Desktop\DocStage\DocStage\Codes\pso_files\resultat_resnet101.jpg"
     
     main(detecteur_path, expert_path, image_test_path)
